@@ -362,7 +362,7 @@ def main():
     traces_internal = drop_stock_and_state(traces)
 
     # 3) Save internal vectors for future reuse
-    save_vectors_dump(traces_internal, args.output_internal)
+    #save_vectors_dump(traces_internal, args.output_internal)
 
     # 4) Window size selection via elbow on reconstruction error (at EVR threshold)
     chosen_w, window_results = pick_window_size(
@@ -397,6 +397,18 @@ def main():
         print(f"{k}\t{mse:.6f}")
 
     print("\nChosen number of PCA components:", chosen_k)
+
+    # Build the full windowed matrix with the optimal window size (no subsampling)
+    X_final = build_windowed_matrix(traces_internal, chosen_w, max_windows=None, rng=rng)
+
+    # Fit PCA with the chosen number of components and project to get embeddings (long floats)
+    Xc_final, p_final = _pca_fit_transform(X_final, n_components=chosen_k)
+    components, mean, _ = p_final
+    W = components[:chosen_k, :]  # (k, D)
+    Z = Xc_final @ W.T  # (n_windows, k) float64
+
+    # Save as a simple list-of-lists (each row is a PCA window embedding)
+    save_vectors_dump(Z.tolist(), args.output_internal)
 
     # 7) Final summary lines (easy to grep)
     print("\nSUMMARY:")
