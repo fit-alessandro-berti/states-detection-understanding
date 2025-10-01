@@ -71,7 +71,7 @@ def drop_stock_and_state(traces: List[List[List[float]]]) -> List[List[List[floa
         for vec in t:
             if len(vec) < 2:
                 raise ValueError("Each event vector must have at least 2 elements to drop (stock, state)")
-            new_t.append(vec[:-2])
+            new_t.append(vec[:-1])
         processed.append(new_t)
     return processed
 
