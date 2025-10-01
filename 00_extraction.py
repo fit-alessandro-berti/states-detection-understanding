@@ -22,6 +22,10 @@ for k in activities:
         act_subvec[len(all_activities)] = stock[k][i]
         act_subvec[len(all_activities)+1] = states[k][i]
         vectors[-1].append(act_subvec)
+    #print([x[-2] for x in vectors[-1]])
+    max_stock = max(x[-2] for x in vectors[-1])
+    for i in range(len(vectors[-1])):
+        vectors[-1][i][-2] = vectors[-1][i][-2] / max_stock
 
-print(vectors)
+#print(vectors)
 pickle.dump(vectors, open("vectors.dump", "wb"))
