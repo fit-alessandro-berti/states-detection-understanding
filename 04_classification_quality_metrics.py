@@ -549,8 +549,8 @@ def main():
             state_traces.append([])
             stock_traces.append([])
             continue
-        states_i = [t[j][-1] for j in range(m)]                 # string labels
-        stocks_i = [float(t[j][-2]) for j in range(m)]          # numeric
+        states_i = [t[j+7][-1] for j in range(m)]                 # string labels
+        stocks_i = [float(t[j+7][-2]) for j in range(m)]          # numeric
         clusters_i = a[:m]
         state_traces.append(states_i)
         stock_traces.append(stocks_i)
