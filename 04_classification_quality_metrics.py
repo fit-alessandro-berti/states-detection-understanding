@@ -28,6 +28,234 @@ python classification_quality_metrics.py \
   --vectors vectors.dump \
   --meta som_global_meta.dump \
   --classes Normal Understock Overstock
+
+More detailed information:
+
+# Metrics for Evaluating the SOM “Classification”
+
+Below is a plain-English + formula guide to every metric the script reports. Where helpful, I’ll note the **range**, **what “good” looks like**, **why it’s useful**, and **gotchas**.
+
+---
+
+## Setup & Notation
+
+* You trained **one SOM** on all window vectors and then assigned each event to a **neuron** (cluster).
+* You also have a **ground-truth state** for each event: one of `Normal`, `Understock`, `Overstock`.
+
+Let:
+
+* (n) = total number of labeled events used for evaluation.
+* (C) = number of clusters (neurons).
+* (S) = number of states (here, (S=3)).
+* (n_{ij}) = number of samples whose **predicted cluster** is (i) and **true state** is (j).
+  The **contingency matrix** is ( \mathbf{N} = [n_{ij}] ) of shape (C \times S).
+* Row/column sums: ( n_{i\cdot} = \sum_j n_{ij} ), ( n_{\cdot j} = \sum_i n_{ij} ), ( n=\sum_{ij} n_{ij} ).
+
+For **classification metrics** (accuracy, precision, recall, F1, confusion matrix), clusters are first mapped to **predicted states** via **majority vote**:
+
+* For cluster (i), assign it the state ( \arg\max_j n_{ij} ).
+  Then each event in cluster (i) is predicted as that state.
+
+> **Note**: Majority mapping collapses clusters to classes; great for readability, but it can overstate performance if a class is very dominant.
+
+---
+
+## Supervised “Classifier” Metrics (state-aware)
+
+These treat the cluster→state majority mapping as a classifier.
+
+### 1) Micro Accuracy (a.k.a. overall accuracy)
+
+**Definition:**
+[
+\text{Acc}_\text{micro} = \frac{\text{# correct predictions}}{n}.
+]
+
+* **Range:** ([0,1]). Higher is better.
+* **Pros:** Simple, intuitive.
+* **Cons:** Sensitive to **class imbalance** (dominant class drives the score).
+
+### 2) Macro Accuracy & Balanced Accuracy
+
+**Macro Accuracy**: average of per-class accuracies (equivalently macro recall):
+[
+\text{Acc}*\text{macro} = \frac{1}{S}\sum*{j=1}^S
+\frac{\text{# correctly predicted state } j}{\text{# true state } j}.
+]
+
+* **Range:** ([0,1]). Higher is better.
+* **Pros:** Treats each class equally; robust to imbalance.
+* **Balanced Accuracy** is **identical** to macro recall for multi-class classification.
+
+### 3) Precision / Recall / F1 (Macro & Weighted)
+
+For each class (j):
+
+* ( \text{Precision}_j = \frac{\text{TP}_j}{\text{TP}_j+\text{FP}_j} )
+* ( \text{Recall}_j = \frac{\text{TP}_j}{\text{TP}_j+\text{FN}_j} )
+* ( \text{F1}_j = \frac{2,\text{Precision}_j,\text{Recall}_j}{\text{Precision}_j+\text{Recall}_j} ), with 0 if denom=0.
+
+**Macro** P/R/F1 = mean over classes.
+**Weighted** P/R/F1 = average over classes weighted by class prevalence (n_{\cdot j}/n).
+
+* **Use macro** to compare performance across classes fairly.
+* **Use weighted** to reflect the dataset’s class distribution.
+
+### 4) Confusion Matrix (states × predicted states)
+
+A standard (S \times S) confusion matrix after majority mapping.
+
+* **Interpretation:** Rows = true states, Columns = predicted states.
+* Off-diagonal mass indicates confusions (e.g., `Understock` → `Normal`).
+
+---
+
+## Clustering Quality (state-aware but mapping-free)
+
+These use the raw contingency matrix ( \mathbf{N} ) and do **not** rely on the cluster→state mapping.
+
+Let ( P = \mathbf{N}/n ), ( p_c ) = cluster distribution (row sums of (P)), ( p_s ) = state distribution (column sums).
+
+### 5) Purity
+
+[
+\text{Purity} = \frac{1}{n}\sum_{i=1}^C \max_j n_{ij}.
+]
+
+* **Range:** ([0,1]). Higher is better.
+* **Meaning:** Each cluster is “pure” if most of its members share the same state.
+* **Caveat:** More clusters generally increase purity; compare at fixed (C).
+
+### 6) Homogeneity, Completeness, and V-measure
+
+* **Homogeneity:** each cluster contains only members of a single class.
+  [
+  \text{hom} = \frac{I(\text{clusters};\text{states})}{H(\text{states})}
+  ]
+
+* **Completeness:** all members of a given class are assigned to the same cluster.
+  [
+  \text{com} = \frac{I(\text{clusters};\text{states})}{H(\text{clusters})}
+  ]
+
+* **V-measure:** harmonic mean of homogeneity & completeness.
+
+* **Range:** ([0,1]). Higher is better.
+
+* **Pros:** Balance cluster purity and class completeness.
+
+### 7) Normalized Mutual Information (NMI)
+
+[
+\text{NMI} = \frac{I(\text{clusters};\text{states})}{\sqrt{H(\text{clusters}),H(\text{states})}}.
+]
+
+* **Range:** ([0,1]). Higher is better.
+* **Interpretation:** Symmetric association between clusters and states.
+
+### 8) Adjusted Rand Index (ARI)
+
+Measures agreement between cluster labels and state labels, **adjusted for chance**.
+
+* **Range:** typically ([-1,1]).
+  0 ≈ random; 1 = perfect agreement; negative = worse than random.
+* **Pros:** Chance-corrected; popular for clustering evaluation.
+
+### 9) Variation of Information (VI)
+
+[
+\text{VI} = H(\text{clusters}) + H(\text{states}) - 2,I(\text{clusters};\text{states}).
+]
+
+* **Range:** ([0,\infty)). **Lower is better.**
+* **Interpretation:** A proper metric on partitions; 0 iff partitions are identical.
+
+---
+
+## Unsupervised & Sequential Diagnostics
+
+These look at properties of the cluster assignments themselves and how they align with the process order.
+
+### 10) Weighted Cluster Entropy (and normalized)
+
+For each cluster (i), consider the **state distribution inside that cluster**:
+[
+H_i = -\sum_j p(j|i)\log p(j|i),
+\quad
+p(j|i)=\frac{n_{ij}}{n_{i\cdot}}.
+]
+Aggregate:
+[
+H_\text{weighted} = \sum_{i=1}^C \frac{n_{i\cdot}}{n},H_i,
+\qquad
+H_\text{norm} = \frac{H_\text{weighted}}{\log S}.
+]
+
+* **Range:** (H_\text{norm}\in[0,1]). **Lower is better** (clusters are purer).
+
+### 11) Adjacency of Consecutive Assignments (temporal smoothness)
+
+We measure how often consecutive events in the same **trace** land on the **same or neighboring neuron** on the SOM grid.
+
+* Neighbor definition: **Chebyshev distance** ≤ 1 on the 2D grid, i.e., same cell or any of its 8 neighbors.
+* Reported:
+
+  * **Adjacency (all transitions)**: fraction of consecutive pairs that are adjacent.
+  * **Adjacency (same-state only)**: same but restricted to transitions where the ground-truth state didn’t change.
+  * **Adjacency (diff-state only)**: restricted to transitions where the ground-truth state changed.
+
+**Interpretation:**
+
+* High **adjacency (same-state)** → the SOM preserves local continuity within a state.
+* Lower **adjacency (diff-state)** → state changes tend to jump further on the map (desirable if you want states to be separated).
+
+### 12) Stock η² (variance explained by neuron)
+
+Treat **neuron ID** as a categorical predictor for the continuous `stock` value.
+Compute ANOVA-style **effect size**:
+[
+\eta^2 = \frac{\text{SS}*\text{between}}{\text{SS}*\text{total}},
+]
+where (\text{SS}*\text{between}) is the between-neuron sum of squares and (\text{SS}*\text{total}) is the total sum of squares.
+
+* **Range:** ([0,1]). Higher means neurons explain more variance in stock.
+* **Use:** Does the map capture meaningful structure in the stock signal?
+
+---
+
+## Confusion Matrix (clusters × states)
+
+This is the raw (C \times S) table ( \mathbf{N} ) before majority mapping:
+
+* Row (i) = a SOM neuron.
+* Column (j) = a true state (`Normal`, `Understock`, `Overstock`).
+* Entry (n_{ij}) = count assigned to neuron (i) with true state (j).
+
+**Reading tips:**
+
+* A **pure** cluster has almost all mass in one column.
+* **Row sums** show cluster size; **column sums** reflect class prevalence.
+* Use it to spot systematic confusions (e.g., `Understock` leaking into `Normal`).
+
+---
+
+## Practical Tips & Gotchas
+
+* **Imbalance:** If `Normal` dominates, micro accuracy and weighted F1 may look high even when minority states suffer. Check **macro** metrics, **homogeneity/completeness**, and the **confusion matrix**.
+* **Purity vs. #clusters:** Purity rises with more clusters. Compare purity across methods at the **same grid size**.
+* **Sequence awareness:** High **adjacency (same-state)** with low **adjacency (diff-state)** suggests the map respects process dynamics: steady periods stay local; transitions jump.
+* **η² (stock):** If this is near 0, neurons don’t separate `stock` well; consider different window sizes, PCA dimensions, or a different grid size.
+* **Majority mapping:** It is a **post-hoc classifier**; excellent for interpretability but can hide multi-modal clusters. Always pair it with NMI/ARI/VI and the contingency matrix.
+
+---
+
+## When to Prefer What
+
+* **Single headline number?** Micro accuracy (easy) or NMI (cluster–state agreement).
+* **Fair to minority states?** Macro accuracy and macro F1.
+* **“Are my clusters purer or more complete?”** Homogeneity (purity-like) and completeness.
+* **Do clusters respect process order?** Adjacency metrics.
+* **Do clusters align with numeric signals?** Stock η².
 """
 from __future__ import annotations
 import argparse
