@@ -29,3 +29,4 @@ for k in activities:
 
 #print(vectors)
 pickle.dump(vectors, open("vectors.dump", "wb"))
+pickle.dump(all_activities, open("all_activities.dump", "wb"))
