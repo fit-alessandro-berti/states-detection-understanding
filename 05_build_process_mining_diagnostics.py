@@ -1,7 +1,7 @@
 import pickle
 from collections import Counter
 import numpy as np
-
+import json
 
 def compute(traces_all):
     ret = []
@@ -15,6 +15,8 @@ def compute(traces_all):
         ret.append({"act": act_orr, "dfg": dfg_relations, "start_act": start_act, "end_act": end_act})
     return ret
 
+
+meta = pickle.load(open("som_global_meta.dump", "rb"))
 
 listt = pickle.load(open("som_global_assignments.dump", "rb"))
 
@@ -57,4 +59,16 @@ activities_pre1 = compute(activities_pre)
 activities1 = compute(activities)
 activities_post1 = compute(activities_post)
 
-print(activities_post1)
+for i in range(len(activities_pre1)):
+    for z in [activities_pre1, activities_post1, activities1]:
+        z[i]["dfg"] = {x[0]+"->"+x[1]: y for x, y in z[i]["dfg"].items()}
+
+#print(meta)
+
+res = [{"coord": meta["coord_map"][i], "pre": activities_pre1[i], "post": activities_post1[i], "inside_state": activities1[i]} for i in range(len(activities_pre1))]
+res = json.dumps(res, indent=2)
+#print(res)
+
+F = open("states.txt", "w", encoding="utf-8")
+F.write(res)
+F.close()
