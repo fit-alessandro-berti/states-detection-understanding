@@ -114,7 +114,22 @@ def main():
     for idx, coord in enumerate(coord_map):
         transitions_to_others = {str(j): transitions[idx][j] for j in range(n_states) if j != idx and transitions[idx][j] > 0}
         status_dist: Dict[str, int] = {str(k): int(v) for k, v in status_counts[idx].items()}
+        # Original majority rule by raw count (provisionally restored)
         majority_status = max(status_counts[idx].items(), key=lambda kv: kv[1])[0] if status_counts[idx] else None
+        # Alternative concentration-based choice (disabled per request):
+        # global_status_totals: Counter = Counter()
+        # for sc in status_counts:
+        #     global_status_totals.update(sc)
+        # majority_status = None
+        # best_score = -1.0
+        # for status, cnt in status_counts[idx].items():
+        #     denom = global_status_totals.get(status, 0)
+        #     if denom <= 0:
+        #         continue
+        #     score = cnt / float(denom)
+        #     if score > best_score:
+        #         best_score = score
+        #         majority_status = status
         output_states.append(
             {
                 "id": idx,
