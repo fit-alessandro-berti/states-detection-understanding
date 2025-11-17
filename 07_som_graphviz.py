@@ -72,7 +72,7 @@ def main():
             if not chebyshev_adjacent(from_coord, to_coord):
                 continue
             lines.append(
-                f'  n{sid} -> n{dst} [taillabel="{count}", labeldistance=0.0, labelangle=180, labelfontsize=9];'
+                f'  n{sid} -> n{dst} [taillabel="  {count}  ", labeldistance=1.0, labelangle=0, labelfontsize=9];'
             )
 
     lines.append('}')
