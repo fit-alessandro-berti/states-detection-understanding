@@ -78,6 +78,8 @@ def main():
     parser.add_argument("--meta", type=str, default="som_global_meta.dump", help="Path to SOM meta dump (rows/cols info).")
     parser.add_argument("--vectors", type=str, default="vectors.dump", help="Path to original vectors with stock/status labels.")
     parser.add_argument("--output", type=str, default="som_state_matrix.json", help="Where to store the resulting JSON.")
+    parser.add_argument("--target-events", type=int, default=0, help="If >0 and --normalize is set, scale counts to this total.")
+    parser.add_argument("--normalize", action="store_true", help="Whether to scale counts to the target number of events.")
     args = parser.parse_args()
 
     assignments = load_dump(args.assignments)
@@ -92,6 +94,21 @@ def main():
     window_size = infer_window_size(vectors, assignments)
     freq, status_counts = count_frequencies_and_status(assignments, vectors, n_states, window_size)
     transitions = count_transitions(assignments, n_states)
+
+    # Optional normalization
+    if args.normalize:
+        total_events = sum(freq)
+        if total_events == 0:
+            raise ValueError("Cannot normalize: total event count is zero.")
+        if args.target_events <= 0:
+            raise ValueError("Normalization requested but --target-events not set to a positive integer.")
+        factor = args.target_events / float(total_events)
+        freq = [int(round(x * factor)) for x in freq]
+        transitions = [[int(round(v * factor)) for v in row] for row in transitions]
+        status_counts = [
+            Counter({k: int(round(v * factor)) for k, v in sc.items()})
+            for sc in status_counts
+        ]
 
     output_states = []
     for idx, coord in enumerate(coord_map):
